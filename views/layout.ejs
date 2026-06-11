@@ -25,10 +25,12 @@
       <a href="/ranking">Ranking</a>
       <a href="/my-results">Moje wyniki</a>
       <a href="/change-password">Hasło</a>
-
       <% if (user.is_admin) { %>
-        <a href="/admin/matches">Admin: mecze</a>
+          <a href="/admin/matches">Admin: mecze</a>
+          <a href="/admin/users">Admin: użytkownicy</a>
       <% } %>
+
+
     </nav>
   <% } %>
 </header>
