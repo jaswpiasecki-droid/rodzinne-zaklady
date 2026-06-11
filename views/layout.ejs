@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Rodzinne Zakłady</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    header { margin-bottom: 20px; }
+    nav a { margin-right: 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    table, th, td { border: 1px solid #aaa; padding: 6px; }
+    input { padding: 4px; }
+    button { padding: 6px 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Rodzinne Zakłady</h1>
+
+  <% if (user) { %>
+    <nav>
+      <strong><%= user.username %></strong> |
+      <a href="/dashboard">Mecze</a>
+      <a href="/ranking">Ranking</a>
+      <a href="/my-results">Moje wyniki</a>
+      <a href="/change-password">Hasło</a>
+
+      <% if (user.is_admin) { %>
+        <a href="/admin/matches">Admin: mecze</a>
+      <% } %>
+    </nav>
+  <% } %>
+</header>
+
+<hr>
+
+<%- body %>
+
+</body>
+</html>

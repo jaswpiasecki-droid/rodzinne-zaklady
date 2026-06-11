@@ -1,0 +1,17 @@
+<%- include('layout', { user, body: `
+<h2>Ranking graczy</h2>
+
+<table>
+  <tr>
+    <th>Gracz</th>
+    <th>Punkty</th>
+  </tr>
+
+  <% ranking.forEach(r => { %>
+    <tr>
+      <td><%= r.username %></td>
+      <td><%= r.total %></td>
+    </tr>
+  <% }) %>
+</table>
+` }) %>

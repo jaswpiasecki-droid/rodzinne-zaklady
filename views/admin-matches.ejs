@@ -1,0 +1,47 @@
+<%- include('layout', { user, body: `
+<h2>Panel administratora — mecze</h2>
+
+<h3>Dodaj nowy mecz</h3>
+
+<form method="post" action="/admin/matches/add">
+  <label>Gospodarz:<br><input name="home_team"></label><br><br>
+  <label>Goście:<br><input name="away_team"></label><br><br>
+  <label>Start (YYYY-MM-DD HH:MM):<br><input name="start_time"></label><br><br>
+  <button type="submit">Dodaj mecz</button>
+</form>
+
+<hr>
+
+<h3>Lista meczów</h3>
+
+<table>
+  <tr>
+    <th>Mecz</th>
+    <th>Start</th>
+    <th>Wynik</th>
+    <th>Ustaw wynik</th>
+  </tr>
+
+  <% matches.forEach(m => { %>
+    <tr>
+      <td><%= m.home_team %> - <%= m.away_team %></td>
+      <td><%= m.start_time %></td>
+      <td>
+        <% if (m.home_score != null) { %>
+          <%= m.home_score %> : <%= m.away_score %>
+        <% } else { %>
+          -
+        <% } %>
+      </td>
+      <td>
+        <form method="post" action="/admin/matches/<%= m.id %>/result">
+          <input type="number" name="home_score" style="width:40px">
+          :
+          <input type="number" name="away_score" style="width:40px">
+          <button type="submit">OK</button>
+        </form>
+      </td>
+    </tr>
+  <% }) %>
+</table>
+` }) %>

@@ -1,0 +1,21 @@
+<%- include('layout', { user, body: `
+<h2>Moje wyniki</h2>
+
+<table>
+  <tr>
+    <th>Mecz</th>
+    <th>Wynik</th>
+    <th>Mój typ</th>
+    <th>Punkty</th>
+  </tr>
+
+  <% results.forEach(r => { %>
+    <tr>
+      <td><%= r.home_team %> - <%= r.away_team %></td>
+      <td><%= r.home_score %> : <%= r.away_score %></td>
+      <td><%= r.bet_home %> : <%= r.bet_away %></td>
+      <td><%= r.points %></td>
+    </tr>
+  <% }) %>
+</table>
+` }) %>

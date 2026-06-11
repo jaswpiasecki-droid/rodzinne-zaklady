@@ -1,0 +1,31 @@
+<%- include('layout', { user, body: `
+<h2>Dostępne mecze</h2>
+
+<table>
+  <tr>
+    <th>Mecz</th>
+    <th>Start</th>
+    <th>Twój typ</th>
+    <th>Punkty</th>
+  </tr>
+
+  <% matches.forEach(m => { %>
+    <tr>
+      <td><%= m.home_team %> - <%= m.away_team %></td>
+      <td><%= m.start_time %></td>
+      <td>
+        <% if (!m.home_score && new Date() < new Date(m.start_time)) { %>
+          <form method="post" action="/bet/<%= m.id %>">
+            <input type="number" name="home_score" value="<%= m.bet_home ?? '' %>" style="width:40px"> :
+            <input type="number" name="away_score" value="<%= m.bet_away ?? '' %>" style="width:40px">
+            <button type="submit">OK</button>
+          </form>
+        <% } else { %>
+          <%= m.bet_home ?? '-' %> : <%= m.bet_away ?? '-' %>
+        <% } %>
+      </td>
+      <td><%= m.points ?? '-' %></td>
+    </tr>
+  <% }) %>
+</table>
+` }) %>
