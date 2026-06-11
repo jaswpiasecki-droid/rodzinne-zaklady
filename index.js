@@ -212,6 +212,38 @@ app.post('/admin/matches/:id/delete', requireAdmin, async (req, res) => {
   res.redirect('/admin/matches');
 });
 
+function calcPoints(match, bet) {
+  if (match.home_score === bet.home_score && match.away_score === bet.away_score) return 3;
+
+  const mw = match.home_score > match.away_score ? 'H' :
+             match.home_score < match.away_score ? 'A' : 'D';
+
+  const bw = bet.home_score > bet.away_score ? 'H' :
+             bet.home_score < bet.away_score ? 'A' : 'D';
+
+  return mw === bw ? 1 : 0;
+}
+
+app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
+  const { home_score, away_score } = req.body;
+  const mid = req.params.id;
+
+  await pool.query(
+    'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
+    [home_score, away_score, mid]
+  );
+
+  const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [mid]);
+  const match = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
+
+  for (const bet of bets.rows) {
+    const points = calcPoints(match.rows[0], bet);
+    await pool.query('UPDATE bets SET points=$1 WHERE id=$2', [points, bet.id]);
+  }
+
+  res.redirect('/admin/matches');
+});
+
 // ADMIN — UŻYTKOWNICY
 
 app.get('/admin/users', requireAdmin, async (req, res) => {
