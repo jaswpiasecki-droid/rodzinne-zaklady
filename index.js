@@ -9,10 +9,11 @@ const app = express();
 
 // Połączenie z PostgreSQL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// Tworzenie tabel
+// Tworzenie tabel aplikacji
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -46,7 +47,26 @@ async function initDb() {
     );
   `);
 }
+
+// Tworzenie tabeli sesji (stabilne, lepsze niż createTableIfMissing)
+async function initSessionTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+      "sid" varchar NOT NULL COLLATE "default",
+      "sess" json NOT NULL,
+      "expire" timestamp(6) NOT NULL,
+      PRIMARY KEY ("sid")
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire"
+    ON "session" ("expire");
+  `);
+}
+
 initDb();
+initSessionTable();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -62,7 +82,8 @@ app.use(
     }),
     secret: 'tajny-klucz',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 dni
   })
 );
 
@@ -73,7 +94,9 @@ function requireLogin(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.session.user || !req.session.user.is_admin) return res.status(403).send('Brak dostępu');
+  if (!req.session.user || !req.session.user.is_admin) {
+    return res.status(403).send('Brak dostępu');
+  }
   next();
 }
 
@@ -118,6 +141,12 @@ app.post('/login', async (req, res) => {
 
   req.session.user = user;
   res.redirect('/dashboard');
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login');
+  });
 });
 
 app.get('/dashboard', requireLogin, async (req, res) => {
