@@ -1,19 +1,17 @@
 <%- include('layout', { user: user }) %>
 
-<h2>Panel administratora — mecze</h2>
+<h2>Mecze</h2>
 
-<h3>Dodaj nowy mecz</h3>
+<h3>Dodaj mecz</h3>
 
 <form method="post" action="/admin/matches/add">
-  <label>Gospodarz:<br><input name="home_team"></label><br><br>
-  <label>Goście:<br><input name="away_team"></label><br><br>
-  <label>Start (YYYY-MM-DD HH:MM):<br><input name="start_time"></label><br><br>
-  <button type="submit">Dodaj mecz</button>
+  <input name="home_team" placeholder="Gospodarz">
+  <input name="away_team" placeholder="Goście">
+  <input name="start_time" placeholder="2025-01-01 20:00">
+  <button>Dodaj</button>
 </form>
 
 <hr>
-
-<h3>Lista meczów</h3>
 
 <table>
   <tr>
@@ -21,6 +19,7 @@
     <th>Start</th>
     <th>Wynik</th>
     <th>Ustaw wynik</th>
+    <th>Usuń</th>
   </tr>
 
   <% matches.forEach(m => { %>
@@ -39,7 +38,12 @@
           <input type="number" name="home_score" style="width:40px">
           :
           <input type="number" name="away_score" style="width:40px">
-          <button type="submit">OK</button>
+          <button>OK</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/admin/matches/<%= m.id %>/delete">
+          <button onclick="return confirm('Usunąć mecz?')">🗑️</button>
         </form>
       </td>
     </tr>
