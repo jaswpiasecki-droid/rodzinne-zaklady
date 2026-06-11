@@ -48,7 +48,7 @@ async function initDb() {
   `);
 }
 
-// Tworzenie tabeli sesji (stabilne, lepsze niż createTableIfMissing)
+// Tworzenie tabeli sesji
 async function initSessionTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "session" (
@@ -83,7 +83,7 @@ app.use(
     secret: 'tajny-klucz',
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 dni
+    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
   })
 );
 
@@ -149,6 +149,8 @@ app.get('/logout', (req, res) => {
   });
 });
 
+// DASHBOARD
+
 app.get('/dashboard', requireLogin, async (req, res) => {
   const uid = req.session.user.id;
 
@@ -182,7 +184,7 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
   res.redirect('/dashboard');
 });
 
-// ADMIN
+// ADMIN — MECZE
 
 app.get('/admin/matches', requireAdmin, async (req, res) => {
   const matches = await pool.query('SELECT * FROM matches ORDER BY start_time DESC');
@@ -200,37 +202,46 @@ app.post('/admin/matches/add', requireAdmin, async (req, res) => {
   res.redirect('/admin/matches');
 });
 
-function calcPoints(match, bet) {
-  if (match.home_score === bet.home_score && match.away_score === bet.away_score) return 3;
-
-  const mw = match.home_score > match.away_score ? 'H' :
-             match.home_score < match.away_score ? 'A' : 'D';
-
-  const bw = bet.home_score > bet.away_score ? 'H' :
-             bet.home_score < bet.away_score ? 'A' : 'D';
-
-  return mw === bw ? 1 : 0;
-}
-
-app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
-  const { home_score, away_score } = req.body;
+// USUWANIE MECZU
+app.post('/admin/matches/:id/delete', requireAdmin, async (req, res) => {
   const mid = req.params.id;
 
-  await pool.query(
-    'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
-    [home_score, away_score, mid]
-  );
-
-  const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [mid]);
-  const match = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
-
-  for (const bet of bets.rows) {
-    const points = calcPoints(match.rows[0], bet);
-    await pool.query('UPDATE bets SET points=$1 WHERE id=$2', [points, bet.id]);
-  }
+  await pool.query('DELETE FROM bets WHERE match_id=$1', [mid]);
+  await pool.query('DELETE FROM matches WHERE id=$1', [mid]);
 
   res.redirect('/admin/matches');
 });
+
+// ADMIN — UŻYTKOWNICY
+
+app.get('/admin/users', requireAdmin, async (req, res) => {
+  const users = await pool.query(`
+    SELECT 
+      u.id, 
+      u.username, 
+      u.is_admin,
+      COALESCE(SUM(b.points), 0) AS total_points,
+      COUNT(b.id) AS bets_count
+    FROM users u
+    LEFT JOIN bets b ON b.user_id = u.id
+    GROUP BY u.id
+    ORDER BY u.id ASC
+  `);
+
+  res.render('admin-users', { user: req.session.user, users: users.rows });
+});
+
+// USUWANIE UŻYTKOWNIKA
+app.post('/admin/users/:id/delete', requireAdmin, async (req, res) => {
+  const uid = req.params.id;
+
+  await pool.query('DELETE FROM bets WHERE user_id=$1', [uid]);
+  await pool.query('DELETE FROM users WHERE id=$1', [uid]);
+
+  res.redirect('/admin/users');
+});
+
+// RANKING
 
 app.get('/ranking', requireLogin, async (req, res) => {
   const ranking = await pool.query(`
@@ -243,6 +254,8 @@ app.get('/ranking', requireLogin, async (req, res) => {
 
   res.render('ranking', { user: req.session.user, ranking: ranking.rows });
 });
+
+// MOJE WYNIKI
 
 app.get('/my-results', requireLogin, async (req, res) => {
   const uid = req.session.user.id;
@@ -257,6 +270,8 @@ app.get('/my-results', requireLogin, async (req, res) => {
 
   res.render('my-results', { user: req.session.user, results: results.rows });
 });
+
+// ZMIANA HASŁA
 
 app.get('/change-password', requireLogin, (req, res) => {
   res.render('change-password', { user: req.session.user });
