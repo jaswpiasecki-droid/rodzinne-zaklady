@@ -205,7 +205,9 @@ app.get('/my-results', requireLogin, (req, res) => {
   });
 });
 
-app.get('/change-password', requireLogin, (req, res) => res.render('change-password'));
+app.get('/change-password', requireLogin, (req, res) => {
+  res.render('change-password', { user: req.session.user });
+});
 
 app.post('/change-password', requireLogin, async (req, res) => {
   const { old_password, new_password } = req.body;
@@ -218,6 +220,9 @@ app.post('/change-password', requireLogin, async (req, res) => {
     });
   });
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
