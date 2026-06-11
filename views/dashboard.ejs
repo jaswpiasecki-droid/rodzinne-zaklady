@@ -1,6 +1,6 @@
 <%- include('layout', { user: user }) %>
 
-<h2>Dostępne mecze</h2>
+<h2>Twoje typy</h2>
 
 <table>
   <tr>
@@ -14,18 +14,36 @@
     <tr>
       <td><%= m.home_team %> - <%= m.away_team %></td>
       <td><%= m.start_time %></td>
+
       <td>
-        <% if (m.home_score == null && new Date() < new Date(m.start_time)) { %>
+        <% const matchStarted = new Date(m.start_time) <= new Date(); %>
+
+        <% if (!matchStarted) { %>
+          <!-- Formularz obstawiania PRZED meczem -->
           <form method="post" action="/bet/<%= m.id %>">
-            <input type="number" name="home_score" value="<%= m.bet_home ?? '' %>" style="width:40px"> :
+            <input type="number" name="home_score" value="<%= m.bet_home ?? '' %>" style="width:40px">
+            :
             <input type="number" name="away_score" value="<%= m.bet_away ?? '' %>" style="width:40px">
-            <button type="submit">OK</button>
+            <button>Zapisz</button>
           </form>
+
         <% } else { %>
-          <%= m.bet_home ?? '-' %> : <%= m.bet_away ?? '-' %>
+          <!-- Po rozpoczęciu meczu -->
+          <% if (m.bet_home != null) { %>
+            <%= m.bet_home %> : <%= m.bet_away %> (zablokowane)
+          <% } else { %>
+            brak typu (za późno)
+          <% } %>
         <% } %>
       </td>
-      <td><%= m.points ?? '-' %></td>
+
+      <td>
+        <% if (m.points != null) { %>
+          <%= m.points %>
+        <% } else { %>
+          -
+        <% } %>
+      </td>
     </tr>
   <% }) %>
 </table>
