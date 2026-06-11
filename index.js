@@ -223,6 +223,3 @@ app.post('/change-password', requireLogin, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
