@@ -164,7 +164,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
   res.render('dashboard', { user: req.session.user, matches: matches.rows });
 });
 
-// BLOKADA OBSTAWIANIA PO CZASIE (NAPRAWIONA)
+// BLOKADA OBSTAWIANIA — POPRAWIONA
 app.post('/bet/:id', requireLogin, async (req, res) => {
   const uid = req.session.user.id;
   const mid = req.params.id;
@@ -173,7 +173,6 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
   const match = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
   if (!match.rows.length) return res.send('Brak meczu');
 
-  // POPRAWNE PARSOWANIE DATY
   const matchStart = new Date(match.rows[0].start_time);
 
   if (isNaN(matchStart.getTime())) {
@@ -181,39 +180,6 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
     return res.send("Błąd daty meczu");
   }
 
-  // BLOKADA OBSTAWIANIA PO CZASIE MECZU
-  if (Date.now() >= matchStart.getTime()) {
-    return res.send('Za późno');
-  }
-
-  // Zapis lub aktualizacja obstawienia
-  await pool.query(`
-    INSERT INTO bets (user_id, match_id, home_score, away_score)
-    VALUES ($1, $2, $3, $4)
-    ON CONFLICT (user_id, match_id)
-    DO UPDATE SET home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score
-  `, [uid, mid, home_score, away_score]);
-
-  res.redirect('/dashboard');
-});
-
-
-  // Zapis lub aktualizacja obstawienia
-  await pool.query(`
-    INSERT INTO bets (user_id, match_id, home_score, away_score)
-    VALUES ($1, $2, $3, $4)
-    ON CONFLICT (user_id, match_id)
-    DO UPDATE SET home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score
-  `, [uid, mid, home_score, away_score]);
-
-  res.redirect('/dashboard');
-});
-
-
-
-  // POPRAWNE PARSOWANIE DATY
-  const matchStart = new Date(match.rows[0].start_time.replace(' ', 'T'));
-
   if (Date.now() >= matchStart.getTime()) {
     return res.send('Za późno');
   }
@@ -227,6 +193,19 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
 
   res.redirect('/dashboard');
 });
+
+// FUNKCJA LICZENIA PUNKTÓW
+function calcPoints(match, bet) {
+  if (match.home_score === bet.home_score && match.away_score === bet.away_score) return 3;
+
+  const mw = match.home_score > match.away_score ? 'H' :
+             match.home_score < match.away_score ? 'A' : 'D';
+
+  const bw = bet.home_score > bet.away_score ? 'H' :
+             bet.home_score < bet.away_score ? 'A' : 'D';
+
+  return mw === bw ? 1 : 0;
+}
 
 // ADMIN — MECZE
 
@@ -246,19 +225,6 @@ app.post('/admin/matches/add', requireAdmin, async (req, res) => {
   res.redirect('/admin/matches');
 });
 
-// FUNKCJA LICZENIA PUNKTÓW
-function calcPoints(match, bet) {
-  if (match.home_score === bet.home_score && match.away_score === bet.away_score) return 3;
-
-  const mw = match.home_score > match.away_score ? 'H' :
-             match.home_score < match.away_score ? 'A' : 'D';
-
-  const bw = bet.home_score > bet.away_score ? 'H' :
-             bet.home_score < bet.away_score ? 'A' : 'D';
-
-  return mw === bw ? 1 : 0;
-}
-
 // ADMIN USTAWIA WYNIK MECZU
 app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
   const { home_score, away_score } = req.body;
@@ -267,8 +233,8 @@ app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
   const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
   const match = matchData.rows[0];
 
-  // BLOKADA: admin nie może ustawić wyniku PRZED meczem
-  const matchStart = new Date(match.start_time.replace(' ', 'T'));
+  const matchStart = new Date(match.start_time);
+
   if (Date.now() < matchStart.getTime()) {
     return res.send('Nie można ustawić wyniku przed rozpoczęciem meczu');
   }
