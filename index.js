@@ -210,4 +210,136 @@ app.post('/admin/matches/add', requireAdmin, async (req, res) => {
 
 // FUNKCJA LICZENIA PUNKTÓW
 function calcPoints(match, bet) {
-  if (match.home
+  if (match.home_score === bet.home_score && match.away_score === bet.away_score) return 3;
+
+  const mw = match.home_score > match.away_score ? 'H' :
+             match.home_score < match.away_score ? 'A' : 'D';
+
+  const bw = bet.home_score > bet.away_score ? 'H' :
+             bet.home_score < bet.away_score ? 'A' : 'D';
+
+  return mw === bw ? 1 : 0;
+}
+
+// ADMIN USTAWIA WYNIK MECZU
+app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
+  const { home_score, away_score } = req.body;
+  const mid = req.params.id;
+
+  const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
+  const match = matchData.rows[0];
+
+  // BLOKADA: admin nie może ustawić wyniku PRZED meczem
+  const matchStart = new Date(match.start_time.replace(' ', 'T'));
+  if (Date.now() < matchStart.getTime()) {
+    return res.send('Nie można ustawić wyniku przed rozpoczęciem meczu');
+  }
+
+  await pool.query(
+    'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
+    [home_score, away_score, mid]
+  );
+
+  const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [mid]);
+
+  for (const bet of bets.rows) {
+    const points = calcPoints(match, bet);
+    await pool.query('UPDATE bets SET points=$1 WHERE id=$2', [points, bet.id]);
+  }
+
+  res.redirect('/admin/matches');
+});
+
+// USUWANIE MECZU
+app.post('/admin/matches/:id/delete', requireAdmin, async (req, res) => {
+  const mid = req.params.id;
+
+  await pool.query('DELETE FROM bets WHERE match_id=$1', [mid]);
+  await pool.query('DELETE FROM matches WHERE id=$1', [mid]);
+
+  res.redirect('/admin/matches');
+});
+
+// ADMIN — UŻYTKOWNICY
+
+app.get('/admin/users', requireAdmin, async (req, res) => {
+  const users = await pool.query(`
+    SELECT 
+      u.id, 
+      u.username, 
+      u.is_admin,
+      COALESCE(SUM(b.points), 0) AS total_points,
+      COUNT(b.id) AS bets_count
+    FROM users u
+    LEFT JOIN bets b ON b.user_id = u.id
+    GROUP BY u.id
+    ORDER BY u.id ASC
+  `);
+
+  res.render('admin-users', { user: req.session.user, users: users.rows });
+});
+
+// USUWANIE UŻYTKOWNIKA
+app.post('/admin/users/:id/delete', requireAdmin, async (req, res) => {
+  const uid = req.params.id;
+
+  await pool.query('DELETE FROM bets WHERE user_id=$1', [uid]);
+  await pool.query('DELETE FROM users WHERE id=$1', [uid]);
+
+  res.redirect('/admin/users');
+});
+
+// RANKING
+
+app.get('/ranking', requireLogin, async (req, res) => {
+  const ranking = await pool.query(`
+    SELECT u.username, COALESCE(SUM(b.points), 0) AS total
+    FROM users u
+    LEFT JOIN bets b ON b.user_id = u.id
+    GROUP BY u.id
+    ORDER BY total DESC
+  `);
+
+  res.render('ranking', { user: req.session.user, ranking: ranking.rows });
+});
+
+// MOJE WYNIKI
+
+app.get('/my-results', requireLogin, async (req, res) => {
+  const uid = req.session.user.id;
+
+  const results = await pool.query(`
+    SELECT m.*, b.home_score AS bet_home, b.away_score AS bet_away, b.points
+    FROM bets b
+    JOIN matches m ON m.id = b.match_id
+    WHERE b.user_id = $1
+    ORDER BY m.start_time DESC
+  `, [uid]);
+
+  res.render('my-results', { user: req.session.user, results: results.rows });
+});
+
+// ZMIANA HASŁA
+
+app.get('/change-password', requireLogin, (req, res) => {
+  res.render('change-password', { user: req.session.user });
+});
+
+app.post('/change-password', requireLogin, async (req, res) => {
+  const { old_password, new_password } = req.body;
+
+  const result = await pool.query('SELECT * FROM users WHERE id=$1', [req.session.user.id]);
+  const user = result.rows[0];
+
+  const ok = await bcrypt.compare(old_password, user.password_hash);
+  if (!ok) return res.send('Złe stare hasło');
+
+  const hash = await bcrypt.hash(new_password, 10);
+
+  await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, user.id]);
+
+  res.send('Hasło zmienione');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
