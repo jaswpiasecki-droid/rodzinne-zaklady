@@ -171,7 +171,17 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
   const { home_score, away_score } = req.body;
 
   const match = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
-  if (!match.rows.length) return res.send('Brak meczu');
+  const matchStart = new Date(match.rows[0].start_time);
+
+if (isNaN(matchStart.getTime())) {
+  console.log("BŁĄD PARSOWANIA DATY:", match.rows[0].start_time);
+  return res.send("Błąd daty meczu");
+}
+
+if (Date.now() >= matchStart.getTime()) {
+  return res.send('Za późno');
+}
+
 
   // POPRAWNE PARSOWANIE DATY
   const matchStart = new Date(match.rows[0].start_time.replace(' ', 'T'));
