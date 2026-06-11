@@ -171,16 +171,33 @@ app.post('/bet/:id', requireLogin, async (req, res) => {
   const { home_score, away_score } = req.body;
 
   const match = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
+  if (!match.rows.length) return res.send('Brak meczu');
+
+  // POPRAWNE PARSOWANIE DATY (Node 24 radzi sobie z tym formatem)
   const matchStart = new Date(match.rows[0].start_time);
 
-if (isNaN(matchStart.getTime())) {
-  console.log("BŁĄD PARSOWANIA DATY:", match.rows[0].start_time);
-  return res.send("Błąd daty meczu");
-}
+  // Jeśli data nie została poprawnie sparsowana
+  if (isNaN(matchStart.getTime())) {
+    console.log("BŁĄD PARSOWANIA DATY:", match.rows[0].start_time);
+    return res.send("Błąd daty meczu");
+  }
 
-if (Date.now() >= matchStart.getTime()) {
-  return res.send('Za późno');
-}
+  // BLOKADA OBSTAWIANIA PO CZASIE MECZU
+  if (Date.now() >= matchStart.getTime()) {
+    return res.send('Za późno');
+  }
+
+  // Zapis lub aktualizacja obstawienia
+  await pool.query(`
+    INSERT INTO bets (user_id, match_id, home_score, away_score)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (user_id, match_id)
+    DO UPDATE SET home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score
+  `, [uid, mid, home_score, away_score]);
+
+  res.redirect('/dashboard');
+});
+
 
 
   // POPRAWNE PARSOWANIE DATY
