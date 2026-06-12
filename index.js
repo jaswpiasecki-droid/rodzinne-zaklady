@@ -13,6 +13,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+pool.query("SET TIME ZONE 'Europe/Warsaw';");
+
 // Tworzenie tabel aplikacji
 async function initDb() {
   await pool.query(`
