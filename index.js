@@ -232,8 +232,14 @@ app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
   const { home_score, away_score } = req.body;
   const mid = req.params.id;
 
-  const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
-  const match = matchData.rows[0];
+await pool.query(
+  'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
+  [home_score, away_score, mid]
+);
+
+// POBIERAMY MECZ PONOWNIE — TERAZ JUŻ Z NOWYM WYNIKIEM
+const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
+const match = matchData.rows[0];
 
   const matchStart = new Date(match.start_time);
 
