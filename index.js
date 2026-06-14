@@ -13,6 +13,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Ustawienie strefy czasowej
 pool.query("SET TIME ZONE 'Europe/Warsaw';");
 
 // Tworzenie tabel aplikacji
@@ -166,7 +167,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
   res.render('dashboard', { user: req.session.user, matches: matches.rows });
 });
 
-// BLOKADA OBSTAWIANIA — POPRAWIONA
+// BLOKADA OBSTAWIANIA
 app.post('/bet/:id', requireLogin, async (req, res) => {
   const uid = req.session.user.id;
   const mid = req.params.id;
@@ -232,26 +233,17 @@ app.post('/admin/matches/:id/result', requireAdmin, async (req, res) => {
   const { home_score, away_score } = req.body;
   const mid = req.params.id;
 
-await pool.query(
-  'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
-  [home_score, away_score, mid]
-);
-
-// POBIERAMY MECZ PONOWNIE — TERAZ JUŻ Z NOWYM WYNIKIEM
-const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
-const match = matchData.rows[0];
-
-  const matchStart = new Date(match.start_time);
-
-  if (Date.now() < matchStart.getTime()) {
-    return res.send('Nie można ustawić wyniku przed rozpoczęciem meczu');
-  }
-
+  // Zapisz wynik
   await pool.query(
     'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
     [home_score, away_score, mid]
   );
 
+  // Pobierz mecz ponownie (z nowym wynikiem)
+  const matchData = await pool.query('SELECT * FROM matches WHERE id=$1', [mid]);
+  const match = matchData.rows[0];
+
+  // Przelicz punkty
   const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [mid]);
 
   for (const bet of bets.rows) {
@@ -352,66 +344,6 @@ app.post('/change-password', requireLogin, async (req, res) => {
 
   res.send('Hasło zmienione');
 });
-
-const cron = require('node-cron');
-const axios = require('axios');
-
-// CRON: sprawdzaj wyniki co minutę
-cron.schedule('* * * * *', async () => {
-  console.log("Sprawdzam wyniki...");
-
-  // Pobierz mecze bez wyniku
-  const matches = await pool.query(`
-    SELECT * FROM matches
-    WHERE home_score IS NULL OR away_score IS NULL
-  `);
-
-  for (const match of matches.rows) {
-    try {
-      // Zapytanie do API-FOOTBALL
-      const response = await axios.get("https://api-football-v1.p.rapidapi.com/v3/fixtures", {
-        params: {
-          team: match.home_team, // tu najlepiej używać ID drużyn
-          date: match.start_time.toISOString().split('T')[0]
-        },
-        headers: {
-          "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
-          "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-        }
-      });
-
-      const data = response.data.response[0];
-      if (!data) continue;
-
-      const goals = data.goals;
-      if (goals.home === null || goals.away === null) continue;
-
-      // Zapisz wynik
-      await pool.query(
-        'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
-        [goals.home, goals.away, match.id]
-      );
-
-      console.log(`Zaktualizowano wynik meczu ${match.home_team} - ${match.away_team}`);
-
-      // Przelicz punkty
-      const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [match.id]);
-
-      for (const bet of bets.rows) {
-        const points = calcPoints(
-          { home_score: goals.home, away_score: goals.away },
-          bet
-        );
-
-        await pool.query('UPDATE bets SET points=$1 WHERE id=$2', [points, bet.id]);
-      }
-
-    } catch (err) {
-      console.error("Błąd API:", err.message);
-    }
-  }
-});
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
