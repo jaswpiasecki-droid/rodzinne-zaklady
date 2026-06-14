@@ -353,5 +353,65 @@ app.post('/change-password', requireLogin, async (req, res) => {
   res.send('Hasło zmienione');
 });
 
+const cron = require('node-cron');
+const axios = require('axios');
+
+// CRON: sprawdzaj wyniki co minutę
+cron.schedule('* * * * *', async () => {
+  console.log("Sprawdzam wyniki...");
+
+  // Pobierz mecze bez wyniku
+  const matches = await pool.query(`
+    SELECT * FROM matches
+    WHERE home_score IS NULL OR away_score IS NULL
+  `);
+
+  for (const match of matches.rows) {
+    try {
+      // Zapytanie do API-FOOTBALL
+      const response = await axios.get("https://api-football-v1.p.rapidapi.com/v3/fixtures", {
+        params: {
+          team: match.home_team, // tu najlepiej używać ID drużyn
+          date: match.start_time.toISOString().split('T')[0]
+        },
+        headers: {
+          "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
+          "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+        }
+      });
+
+      const data = response.data.response[0];
+      if (!data) continue;
+
+      const goals = data.goals;
+      if (goals.home === null || goals.away === null) continue;
+
+      // Zapisz wynik
+      await pool.query(
+        'UPDATE matches SET home_score=$1, away_score=$2 WHERE id=$3',
+        [goals.home, goals.away, match.id]
+      );
+
+      console.log(`Zaktualizowano wynik meczu ${match.home_team} - ${match.away_team}`);
+
+      // Przelicz punkty
+      const bets = await pool.query('SELECT * FROM bets WHERE match_id=$1', [match.id]);
+
+      for (const bet of bets.rows) {
+        const points = calcPoints(
+          { home_score: goals.home, away_score: goals.away },
+          bet
+        );
+
+        await pool.query('UPDATE bets SET points=$1 WHERE id=$2', [points, bet.id]);
+      }
+
+    } catch (err) {
+      console.error("Błąd API:", err.message);
+    }
+  }
+});
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Działa na porcie ' + PORT));
